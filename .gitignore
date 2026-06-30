@@ -1,0 +1,19 @@
+# Mobile app dependencies and build outputs
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+
+# Environment files
+.env
+.env.*
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Expo types generated locally
+expo-env.d.ts
