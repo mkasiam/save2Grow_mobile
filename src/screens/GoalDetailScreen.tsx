@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   Alert,
+  Linking,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -246,27 +247,25 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
     }
 
     try {
-      const wasIncomplete = goal.current < goal.target;
-      await transactionService.createTransaction({
+      const sessionResponse = await transactionService.createSslcommerzDepositSession({
         goalId: goal.id,
-        type: 'deposit',
         amount: parsedAmount,
         description: depositForm.description,
         paymentMethod: depositForm.paymentMethod,
       });
 
-      await loadGoalDetail();
       setDepositForm({ amount: '', description: '', paymentMethod: 'bkash' });
       setShowDepositModal(false);
-      await refreshUser();
-      showToast(`Tk ${parsedAmount.toLocaleString()} deposited`);
-
-      if (wasIncomplete && goal.current + parsedAmount >= goal.target) {
-        setShowCelebration(true);
+      const gatewayUrl = sessionResponse.data?.gatewayPageURL;
+      if (!gatewayUrl) {
+        throw new Error('Gateway URL was not returned by SSLCommerz');
       }
+
+      await Linking.openURL(gatewayUrl);
+      showToast('Complete the SSLCommerz checkout to finish your deposit');
     } catch (error) {
       console.error('Error saving deposit:', error);
-      showToast('Deposit could not be saved', 'error');
+      showToast('SSLCommerz checkout could not be started', 'error');
     }
   };
 
@@ -596,7 +595,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
             </View>
 
             <TouchableOpacity style={styles.modalButton} onPress={handleDeposit}>
-              <Text style={styles.modalButtonText}>{text.completeDeposit}</Text>
+              <Text style={styles.modalButtonText}>Pay with SSLCommerz</Text>
             </TouchableOpacity>
           </View>
         </View>

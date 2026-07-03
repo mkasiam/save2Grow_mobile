@@ -98,6 +98,8 @@ export const transactionService = {
   getAllTransactions: () => api.get("/transactions/all"),
   updateTransactionStatus: (transactionId: string, status: 'processing' | 'completed' | 'failed') =>
     api.put(`/transactions/${transactionId}/status`, { status }),
+  createSslcommerzDepositSession: (data: Record<string, unknown>) =>
+    api.post('/payments/sslcommerz/initiate', data),
 };
 
 // Challenge endpoints for listing challenges, joining one, or loading the user's joined items.
