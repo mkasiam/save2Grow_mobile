@@ -12,7 +12,7 @@ const getHostFromUri = (value?: string | null) => {
   return value.replace(/^https?:\/\//, "").split(":")[0] || null;
 };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = Constants.expoConfig?.extra?.apiUrl || Constants.manifest?.extra?.apiUrl || '';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -96,7 +96,7 @@ export const transactionService = {
     api.get(`/transactions/goal/${goalId}`),
   // Admin-scoped requests
   getAllTransactions: () => api.get("/transactions/all"),
-  updateTransactionStatus: (transactionId: string, status: 'completed' | 'failed') =>
+  updateTransactionStatus: (transactionId: string, status: 'processing' | 'completed' | 'failed') =>
     api.put(`/transactions/${transactionId}/status`, { status }),
 };
 
@@ -105,9 +105,28 @@ export const challengeService = {
   createChallenge: (data: Record<string, unknown>) =>
     api.post("/challenges", data),
   getChallenges: () => api.get("/challenges"),
+  getAdminChallenges: (params?: { page?: number; limit?: number; status?: 'all' | 'active' | 'inactive' | 'completed' | 'cancelled' }) =>
+    api.get("/challenges/admin", { params }),
+  updateChallenge: (challengeId: string, data: Record<string, unknown>) =>
+    api.put(`/challenges/admin/${challengeId}`, data),
+  deleteChallenge: (challengeId: string) =>
+    api.delete(`/challenges/admin/${challengeId}`),
   joinChallenge: (challengeId: string) =>
     api.post(`/challenges/${challengeId}/join`),
   getUserChallenges: () => api.get("/challenges/user/challenges"),
+};
+
+export const withdrawalService = {
+  requestWithdrawal: (data: Record<string, unknown>) => api.post('/withdrawals/request', data),
+  getMyWithdrawalRequests: () => api.get('/withdrawals/me'),
+  getAllWithdrawalRequests: () => api.get('/withdrawals/admin'),
+  updateWithdrawalStatus: (withdrawalId: string, status: 'approved' | 'rejected', adminNote?: string) =>
+    api.put(`/withdrawals/${withdrawalId}/status`, { status, adminNote }),
+};
+
+export const notificationService = {
+  getNotifications: () => api.get('/notifications'),
+  markAsRead: (notificationId: string) => api.put(`/notifications/${notificationId}/read`),
 };
 
 export default api;

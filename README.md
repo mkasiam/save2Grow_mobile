@@ -48,6 +48,8 @@ mobile/
 - 📈 Analytics Dashboard
 - 💸 Easy Withdrawals
 - 👥 Social Challenges
+- 🛡️ Admin challenge dashboard with status filtering
+- ✅ Withdrawal request flow with 5% early-exit penalty preview
 
 ## Key Files
 

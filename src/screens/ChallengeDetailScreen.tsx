@@ -1,17 +1,19 @@
 import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
-import { challengeService, goalService, transactionService, userService } from '../services/api';
+import { challengeService, goalService, transactionService, userService, withdrawalService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
 import { Toast } from '../components';
@@ -82,6 +84,13 @@ const formatChallengeValue = (value: number, challengeType: string) => {
 
   return `Tk ${Number(value).toLocaleString()}`;
 };
+
+const roundMoney = (value: number) => Math.round(Number(value || 0) * 100) / 100;
+
+const getUserChallengeId = (userChallenges: any[], challengeId: string) => {
+  const match = userChallenges.find((item) => (item._id || item.id) === challengeId);
+  return match?.userChallengeId || match?.userChallengeId?._id || match?.userChallengeId?.id || null;
+};
 export default function ChallengeDetailScreen({ route }: { route: any }) {
   const { user } = useAuth();
   const challengeId = route.params?.challengeId;
@@ -90,8 +99,13 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
   const [stats, setStats] = useState<any>(null);
   const [goals, setGoals] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [userChallenges, setUserChallenges] = useState<any[]>([]);
   const [language, setLanguage] = useState<'en' | 'bn'>('en');
   const [loading, setLoading] = useState(false);
+  const [withdrawalModalVisible, setWithdrawalModalVisible] = useState(false);
+  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
+  const [withdrawalNote, setWithdrawalNote] = useState('');
+  const [withdrawalPreview, setWithdrawalPreview] = useState<any>(null);
   const [toast, setToast] = useState({
     visible: false,
     message: '',
@@ -107,13 +121,16 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
         return;
       }
 
-      const [challengeResponse, statsResponse, transactionResponse, goalsResponse, settings] = await Promise.all([
+      const [challengeResponse, statsResponse, transactionResponse, goalsResponse, userChallengeResponse, settings] = await Promise.all([
         challengeService.getChallenges(),
         userService.getStats(user.id),
         transactionService.getTransactions(),
         goalService.getGoals(),
+        challengeService.getUserChallenges(),
         getStoredAppSettings(),
       ]);
+
+      const userChallengeList = userChallengeResponse.data || [];
 
       const matchedChallenge = (challengeResponse.data || []).find(
         (item: any) => (item._id || item.id) === challengeId
@@ -137,6 +154,8 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
       setParticipants(Array.isArray(matchedChallenge?.participantIds) ? matchedChallenge.participantIds : []);
       setStats(statsResponse.data);
       setTransactions(transactionResponse.data || []);
+      setUserChallenges(userChallengeList);
+      setUserChallenges(userChallengeList);
       setGoals((goalsResponse.data || []).map((goal: any) => ({
         id: goal._id || goal.id,
         targetAmount: goal.targetAmount || goal.target,
@@ -179,6 +198,52 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
     } catch (error) {
       console.error('Error joining challenge:', error);
       Alert.alert(text.joinFailed, text.challengeCouldNotJoin);
+    }
+  };
+
+  const openWithdrawalModal = () => {
+    if (!challenge) {
+      return;
+    }
+
+    const baseAmount = roundMoney(currentValue);
+    const completed = progressPercent >= 100 || challenge.status === 'completed';
+    const penaltyRate = completed ? 0 : 0.05;
+    const penaltyFee = roundMoney(baseAmount * penaltyRate);
+    const payoutAmount = roundMoney(Math.max(baseAmount - penaltyFee, 0));
+
+    setWithdrawalPreview({
+      baseAmount,
+      completed,
+      penaltyRate,
+      penaltyFee,
+      payoutAmount,
+    });
+    setWithdrawalNote('');
+    setWithdrawalModalVisible(true);
+  };
+
+  const submitWithdrawalRequest = async () => {
+    if (!challenge) {
+      return;
+    }
+
+    const userChallengeId = getUserChallengeId(userChallenges, challenge.id);
+    const payload = userChallengeId
+      ? { userChallengeId, adminNote: withdrawalNote.trim() || undefined }
+      : { challengeId: challenge.id, adminNote: withdrawalNote.trim() || undefined };
+
+    setWithdrawalSubmitting(true);
+    try {
+      await withdrawalService.requestWithdrawal(payload);
+      setWithdrawalModalVisible(false);
+      showToast('Withdrawal request submitted');
+      await loadChallenge();
+    } catch (error: any) {
+      console.error('Error submitting withdrawal request:', error);
+      Alert.alert('Withdrawal request failed', error?.response?.data?.error || 'Please try again later');
+    } finally {
+      setWithdrawalSubmitting(false);
     }
   };
 
@@ -323,6 +388,60 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
           {challenge.joined ? text.youAlreadyJoined : text.joinThisChallenge}
         </Text>
       </TouchableOpacity>
+
+      {challenge.joined ? (
+        <TouchableOpacity style={styles.withdrawButton} onPress={openWithdrawalModal}>
+          <Ionicons name="cash-outline" size={18} color="#FFF" />
+          <Text style={styles.withdrawButtonText}>Request Withdrawal</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      <Modal visible={withdrawalModalVisible} transparent animationType="fade" onRequestClose={() => setWithdrawalModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Confirm Withdrawal Request</Text>
+            <Text style={styles.modalText}>
+              {withdrawalPreview?.completed
+                ? 'You completed this challenge. You are eligible for a full payout.'
+                : 'This is an early withdrawal. A strict 5% penalty will be applied.'}
+            </Text>
+
+            <View style={styles.breakdownBox}>
+              <View style={styles.breakdownRowCompact}>
+                <Text style={styles.breakdownLabel}>Initial deposit</Text>
+                <Text style={styles.breakdownValue}>Tk {withdrawalPreview?.baseAmount?.toLocaleString()}</Text>
+              </View>
+              <View style={styles.breakdownRowCompact}>
+                <Text style={styles.breakdownLabel}>Penalty fee</Text>
+                <Text style={styles.breakdownValue}>Tk {withdrawalPreview?.penaltyFee?.toLocaleString()}</Text>
+              </View>
+              <View style={styles.breakdownRowCompact}>
+                <Text style={styles.breakdownLabel}>Payout amount</Text>
+                <Text style={styles.breakdownValue}>Tk {withdrawalPreview?.payoutAmount?.toLocaleString()}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.modalLabel}>Admin note</Text>
+            <TextInput
+              style={styles.noteInput}
+              value={withdrawalNote}
+              onChangeText={setWithdrawalNote}
+              placeholder="Optional note for the admin"
+              placeholderTextColor="#8A9B92"
+              multiline
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={() => setWithdrawalModalVisible(false)} disabled={withdrawalSubmitting}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmButton} onPress={submitWithdrawalRequest} disabled={withdrawalSubmitting}>
+                <Text style={styles.modalConfirmText}>{withdrawalSubmitting ? 'Submitting...' : 'Confirm'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Toast
         visible={toast.visible}
@@ -585,6 +704,105 @@ const styles = StyleSheet.create({
   },
   actionButtonMuted: {
     backgroundColor: '#E3ECE7',
+  },
+  withdrawButton: {
+    marginTop: 12,
+    backgroundColor: '#173629',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  withdrawButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E1ECE6',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#13241D',
+  },
+  modalText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#60756B',
+  },
+  breakdownBox: {
+    marginTop: 14,
+    borderRadius: 16,
+    backgroundColor: '#F7FAF8',
+    borderWidth: 1,
+    borderColor: '#E3ECE7',
+    padding: 12,
+    gap: 8,
+  },
+  breakdownRowCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalLabel: {
+    marginTop: 14,
+    marginBottom: 8,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#13241D',
+  },
+  noteInput: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: '#DDE7E1',
+    borderRadius: 14,
+    backgroundColor: '#FBFDFB',
+    padding: 12,
+    color: '#10201A',
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    marginTop: 16,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalCancelButton: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: '#EEF3F0',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#486258',
+  },
+  modalConfirmButton: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: '#1E8E5A',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
   },
   actionText: {
     fontSize: 15,

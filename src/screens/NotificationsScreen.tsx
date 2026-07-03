@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
-import { challengeService, goalService, transactionService } from '../services/api';
+import { challengeService, goalService, notificationService, transactionService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
 
@@ -97,10 +97,11 @@ export default function NotificationsScreen() {
   const loadNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const [goalsResponse, transactionsResponse, challengesResponse, settings] = await Promise.all([
+      const [goalsResponse, transactionsResponse, challengesResponse, backendNotificationsResponse, settings] = await Promise.all([
         goalService.getGoals(),
         transactionService.getTransactions(),
         challengeService.getChallenges(),
+        notificationService.getNotifications(),
         getStoredAppSettings(),
       ]);
 
@@ -110,7 +111,21 @@ export default function NotificationsScreen() {
         challengesResponse.data || [],
         user?.id,
       );
-      setNotifications(built);
+
+      const backendNotifications = (backendNotificationsResponse.data || []).map((item: any) => ({
+        id: item._id || item.id,
+        title: item.title,
+        message: item.body,
+        type: item.type || 'system',
+        timestamp: item.createdAt,
+        read: Boolean(item.read),
+      }));
+
+      const merged = [...backendNotifications, ...built]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 20);
+
+      setNotifications(merged);
       setLanguage(settings.language);
     } catch (error) {
       console.error('Error loading notifications:', error);
