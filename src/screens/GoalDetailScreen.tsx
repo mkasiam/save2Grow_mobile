@@ -285,7 +285,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
       const sessionResponse = await transactionService.createSslcommerzDepositSession({
         goalId: goal.id,
         amount: parsedAmount,
-        description: depositForm.description,
+        description: depositForm.description?.trim() || '',
         paymentMethod: depositForm.paymentMethod,
       });
 
@@ -325,9 +325,9 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
         goalId: goal.id,
         type: 'withdrawal',
         amount: parsedAmount,
-        description: withdrawForm.description,
+        description: withdrawForm.description?.trim() || '',
         paymentMethod: withdrawForm.paymentMethod,
-        note: withdrawForm.note,
+        note: withdrawForm.note?.trim() || '',
       });
 
       await loadGoalDetail();
@@ -639,7 +639,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
             <Text style={styles.modalLabel}>{text.description}</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Monthly savings"
+              placeholder="Optional"
               value={depositForm.description}
               onChangeText={(description) =>
                 setDepositForm((prev) => ({ ...prev, description }))
@@ -863,7 +863,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
             <Text style={styles.modalLabel}>{text.description}</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Course fee"
+              placeholder="Optional"
               value={withdrawForm.description}
               onChangeText={(description) =>
                 setWithdrawForm((prev) => ({ ...prev, description }))

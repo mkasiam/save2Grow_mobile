@@ -289,7 +289,7 @@ export default function ChallengeDetailScreen({ route, navigation }: { route: an
       const sessionResponse = await transactionService.createSslcommerzDepositSession({
         userChallengeId,
         amount: parsedAmount,
-        description: 'Challenge Deposit',
+        description: '',
         paymentMethod: 'sslcommerz',
       });
 

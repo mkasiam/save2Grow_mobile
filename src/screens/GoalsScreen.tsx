@@ -141,7 +141,6 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
     title: '',
     description: '',
     target: '',
-    current: '',
     targetDate: '',
     nextContributionDate: '',
     contributionFrequency: 'weekly',
@@ -235,7 +234,6 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
 
   const handleCreateGoal = async () => {
     const target = Number(form.target);
-    const current = Number(form.current || 0);
 
     if (!form.title.trim() || !target || !form.targetDate.trim()) {
       Alert.alert(text.errorTitle, text.goalCreateValidation);
@@ -265,16 +263,11 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
         icon: form.icon || selectedCategory?.icon || '🎯',
       });
 
-      if (current > 0) {
-        await goalService.addSavings(createdGoalResponse.data._id || createdGoalResponse.data.id, current);
-      }
-
       setShowCreateModal(false);
       setForm({
         title: '',
         description: '',
         target: '',
-        current: '',
         targetDate: '',
         nextContributionDate: '',
         contributionFrequency: 'weekly',
@@ -553,16 +546,6 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
                       onChangeText={(target) => setForm((prev) => ({ ...prev, target }))}
                       keyboardType="decimal-pad"
                       placeholder="50000"
-                    />
-                  </View>
-                  <View style={styles.half}>
-                    <Text style={styles.label}>{text.currentAmount}</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={form.current}
-                      onChangeText={(current) => setForm((prev) => ({ ...prev, current }))}
-                      keyboardType="decimal-pad"
-                      placeholder="0"
                     />
                   </View>
                 </View>
