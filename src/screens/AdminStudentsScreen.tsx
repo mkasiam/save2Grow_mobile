@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { userService } from '../services/api';
-import { Toast } from '../components';
+import { Toast, ScreenLoadingOverlay } from '../components';
 
 type StudentUser = {
   id: string;
@@ -29,12 +29,17 @@ type StudentUser = {
 export default function AdminStudentsScreen() {
   const [students, setStudents] = useState<StudentUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
   const [toast, setToast] = useState({ visible: false, message: '', variant: 'success' as 'success' | 'error' });
 
-  const fetchStudents = useCallback(async () => {
-    setLoading(true);
+  const fetchStudents = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const response = await userService.getAllStudents();
       const mapped = (response.data || []).map((item: any) => ({
@@ -52,6 +57,7 @@ export default function AdminStudentsScreen() {
       showToast('Failed to load students', 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -209,27 +215,23 @@ export default function AdminStudentsScreen() {
         </View>
       </View>
 
-      {loading && students.length === 0 ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#1E8E5A" />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredStudents}
-          renderItem={renderStudentItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={fetchStudents} colors={['#1E8E5A']} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="people-outline" size={64} color="#C4D7CE" />
-              <Text style={styles.emptyText}>No student records found</Text>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={filteredStudents}
+        renderItem={renderStudentItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchStudents(true)} colors={['#1E8E5A']} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Ionicons name="people-outline" size={64} color="#C4D7CE" />
+            <Text style={styles.emptyText}>No student records found</Text>
+          </View>
+        }
+      />
+
+      <ScreenLoadingOverlay visible={loading} message="Loading students..." />
 
       <Toast
         visible={toast.visible}

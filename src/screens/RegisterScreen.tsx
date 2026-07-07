@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  ActivityIndicator,
   Animated,
   Dimensions,
   KeyboardAvoidingView,
@@ -381,13 +380,9 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
           onPress={currentPage === 1 ? goToNextPage : handleRegister}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator size={18} color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {currentPage === 1 ? "Continue" : text.register}
-            </Text>
-          )}
+          <Text style={styles.buttonText}>
+            {loading ? "Processing..." : currentPage === 1 ? "Continue" : text.register}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -409,7 +404,7 @@ export default function RegisterScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F7F8FA",
+    backgroundColor: "#F2F7F4",
   },
   pageCard: {
     flex: 1,
@@ -423,11 +418,11 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     height: 5,
-    backgroundColor: "#E8E8E8",
+    backgroundColor: "#DFEBE4",
   },
   progressBar: {
     height: "100%",
-    backgroundColor: "#007AFF",
+    backgroundColor: "#1E8E5A",
     width: "50%",
   },
   progressBarFull: {
@@ -440,15 +435,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 25,
-    fontWeight: "700",
+    fontWeight: "800",
     marginBottom: 8,
-    color: "#000",
+    color: "#0E2018",
     letterSpacing: -0.5,
     lineHeight: 34,
   },
   subtitle: {
     fontSize: 16,
-    color: "#666",
+    color: "#5E776C",
     marginBottom: 12,
     lineHeight: 22,
   },
@@ -472,24 +467,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
-    color: "#111827",
+    color: "#10201A",
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#E2ECE7",
     borderRadius: 12,
     padding: 14,
     marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: "#FFFFFF",
-    color: "#000",
+    fontSize: 15,
+    backgroundColor: "#FFF",
+    color: "#10201A",
   },
   inputError: {
-    borderColor: "#FF3B30",
-    backgroundColor: "#FFF5F5",
+    borderColor: "#D94C3D",
+    backgroundColor: "#FDF0EE",
   },
   errorText: {
-    color: "#FF3B30",
+    color: "#D94C3D",
     fontSize: 12,
     marginTop: -12,
     marginBottom: 12,
@@ -497,23 +492,23 @@ const styles = StyleSheet.create({
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: "#E2ECE7",
     borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF",
     marginBottom: 16,
     overflow: "hidden",
   },
   pickerContainerError: {
-    borderColor: "#FF3B30",
-    backgroundColor: "#FFF5F5",
+    borderColor: "#D94C3D",
+    backgroundColor: "#FDF0EE",
   },
   picker: {
     height: 50,
-    color: "#000",
+    color: "#10201A",
   },
   pickerItem: {
-    fontSize: 16,
-    color: "#000",
+    fontSize: 15,
+    color: "#10201A",
   },
   buttonContainer: {
     flexDirection: "row",
@@ -523,7 +518,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   button: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#1E8E5A",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
@@ -539,7 +534,7 @@ const styles = StyleSheet.create({
   },
   buttonSecondary: {
     borderWidth: 1,
-    borderColor: "#007AFF",
+    borderColor: "#1E8E5A",
     backgroundColor: "#FFF",
     paddingVertical: 14,
     borderRadius: 10,
@@ -549,7 +544,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   buttonSecondaryText: {
-    color: "#007AFF",
+    color: "#1E8E5A",
     fontSize: 16,
     fontWeight: "600",
   },
@@ -568,12 +563,12 @@ const styles = StyleSheet.create({
   },
   linkText: {
     textAlign: "center",
-    color: "#666",
+    color: "#5E776C",
     fontSize: 14,
   },
   linkBold: {
-    color: "#007AFF",
-    fontWeight: "600",
+    color: "#1E8E5A",
+    fontWeight: "700",
   },
   spacer: {
     height: 10,

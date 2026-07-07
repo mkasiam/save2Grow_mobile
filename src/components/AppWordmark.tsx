@@ -2,9 +2,9 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export function AppWordmark() {
+export function AppWordmark({ scale = 1 }: { scale?: number }) {
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { transform: [{ scale }] }]}>
       <View style={styles.iconShell}>
         <Ionicons name="leaf" size={15} color="#F6FFF9" />
       </View>

@@ -16,7 +16,8 @@ import { useAuth } from '../hooks/useAuth';
 import { challengeService, goalService, transactionService, userService, withdrawalService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
-import { Toast } from '../components';
+import { PaymentWebViewModal, ScreenLoadingOverlay, Toast } from '../components';
+import { getFriendlyErrorMessage } from '../utils/errorMessages';
 
 const getParticipantId = (participant: any) => {
   if (!participant) {
@@ -48,9 +49,14 @@ const mapChallenge = (challenge: any, userId: string) => {
   };
 };
 
-const getCurrentValue = (challenge: any, stats: any, transactions: any[], goals: any[]) => {
+const getCurrentValue = (challenge: any, stats: any, transactions: any[], goals: any[], userChallenges: any[]) => {
   if (!challenge) {
     return 0;
+  }
+
+  const ucMatch = userChallenges.find((item) => (item._id || item.id) === challenge.id);
+  if (ucMatch && ucMatch.currentAmount !== undefined) {
+    return Number(ucMatch.currentAmount);
   }
 
   if (challenge.type === 'save_amount') {
@@ -62,7 +68,9 @@ const getCurrentValue = (challenge: any, stats: any, transactions: any[], goals:
   }
 
   if (challenge.type === 'save_percentage') {
-    return goals.reduce((highest: number, goal: any) => {
+    return goals
+      .filter((goal: any) => goal.entityType !== 'userChallenge')
+      .reduce((highest: number, goal: any) => {
       const target = Number(goal.targetAmount || goal.target || 0);
       const current = Number(goal.currentAmount || goal.current || 0);
       const progress = target > 0 ? Math.round((current / target) * 100) : 0;
@@ -102,18 +110,28 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
   const [userChallenges, setUserChallenges] = useState<any[]>([]);
   const [language, setLanguage] = useState<'en' | 'bn'>('en');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [withdrawalModalVisible, setWithdrawalModalVisible] = useState(false);
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
+  const [showVerificationNotice, setShowVerificationNotice] = useState(false);
   const [withdrawalNote, setWithdrawalNote] = useState('');
   const [withdrawalPreview, setWithdrawalPreview] = useState<any>(null);
+  const [depositModalVisible, setDepositModalVisible] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [toast, setToast] = useState({
     visible: false,
     message: '',
     variant: 'success',
   });
 
-  const loadChallenge = useCallback(async () => {
-    setLoading(true);
+  const loadChallenge = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       if (!user?.id || !challengeId) {
         setChallenge(null);
@@ -160,12 +178,15 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
         id: goal._id || goal.id,
         targetAmount: goal.targetAmount || goal.target,
         currentAmount: goal.currentAmount || goal.current,
+        entityType: goal.entityType || goal.sourceType || 'goal',
       })));
       setLanguage(settings.language);
     } catch (error) {
       console.error('Error loading challenge detail:', error);
+      showToast(getFriendlyErrorMessage(error, 'Unable to load this challenge right now.'), 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [challengeId, user?.id]);
 
@@ -179,6 +200,17 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
 
   const showToast = (message: string, variant = 'success') => {
     setToast({ visible: true, message, variant });
+  };
+
+  const isVerifiedStudent = user?.verificationStatus === 'verified';
+
+  const requireVerification = () => {
+    if (isVerifiedStudent) {
+      return true;
+    }
+
+    setShowVerificationNotice(true);
+    return false;
   };
 
   const handleJoin = async () => {
@@ -203,6 +235,10 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
 
   const openWithdrawalModal = () => {
     if (!challenge) {
+      return;
+    }
+
+    if (!requireVerification()) {
       return;
     }
 
@@ -241,11 +277,58 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
       await loadChallenge();
     } catch (error: any) {
       console.error('Error submitting withdrawal request:', error);
-      Alert.alert('Withdrawal request failed', error?.response?.data?.error || 'Please try again later');
+      Alert.alert('Withdrawal request failed', getFriendlyErrorMessage(error, 'Please try again later'));
     } finally {
       setWithdrawalSubmitting(false);
     }
   };
+
+  const openDepositModal = () => {
+    if (!challenge || !challenge.joined) return;
+    if (!requireVerification()) return;
+    setDepositAmount('');
+    setDepositModalVisible(true);
+  };
+
+  const handleDeposit = async () => {
+    if (!challenge) return;
+    const parsedAmount = Number(depositAmount.replace(/,/g, '').trim());
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    const userChallengeId = getUserChallengeId(userChallenges, challenge.id);
+    if (!userChallengeId) {
+      Alert.alert('Error', 'User challenge not found');
+      return;
+    }
+
+    try {
+      const sessionResponse = await transactionService.createSslcommerzDepositSession({
+        userChallengeId,
+        amount: parsedAmount,
+        description: 'Challenge Deposit',
+        paymentMethod: 'sslcommerz',
+      });
+
+      const gatewayUrl = sessionResponse.data?.gatewayPageURL;
+      if (!gatewayUrl) {
+        throw new Error('Gateway URL was not returned by SSLCommerz');
+      }
+
+      setDepositModalVisible(false);
+      setCheckoutUrl(gatewayUrl);
+      setShowPaymentModal(true);
+    } catch (error) {
+      console.error('Error saving deposit:', error);
+      showToast(getFriendlyErrorMessage(error, 'SSLCommerz checkout could not be started'), 'error');
+    }
+  };
+
+  if (loading && !challenge) {
+    return <ScreenLoadingOverlay visible={true} message="Loading challenge details..." />;
+  }
 
   if (!challenge) {
     return (
@@ -256,7 +339,7 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
     );
   }
 
-  const currentValue = getCurrentValue(challenge, stats, transactions, goals);
+  const currentValue = getCurrentValue(challenge, stats, transactions, goals, userChallenges);
   const progressRatio = Math.min(currentValue / Math.max(challenge.target, 1), 1);
   const progressPercent = Math.round(progressRatio * 100);
   const participantNames = participants
@@ -264,14 +347,15 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
     .filter(Boolean);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={loadChallenge} />
-      }
-    >
-      <View style={styles.heroCard}>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadChallenge(true)} />
+        }
+      >
+        <View style={styles.heroCard}>
         <View style={styles.heroTopRow}>
           <Text style={styles.heroIcon}>{challenge.id ? '🏁' : '🎯'}</Text>
           {challenge.joined ? (
@@ -390,10 +474,16 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
       </TouchableOpacity>
 
       {challenge.joined ? (
-        <TouchableOpacity style={styles.withdrawButton} onPress={openWithdrawalModal}>
-          <Ionicons name="cash-outline" size={18} color="#FFF" />
-          <Text style={styles.withdrawButtonText}>Request Withdrawal</Text>
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={[styles.withdrawButton, { flex: 1, marginRight: 8, backgroundColor: '#1E8E5A' }]} onPress={openDepositModal}>
+            <Ionicons name="add-circle" size={18} color="#FFF" />
+            <Text style={styles.withdrawButtonText}>Deposit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.withdrawButton, { flex: 1 }]} onPress={openWithdrawalModal}>
+            <Ionicons name="cash-outline" size={18} color="#FFF" />
+            <Text style={styles.withdrawButtonText}>Withdraw</Text>
+          </TouchableOpacity>
+        </View>
       ) : null}
 
       <Modal visible={withdrawalModalVisible} transparent animationType="fade" onRequestClose={() => setWithdrawalModalVisible(false)}>
@@ -443,13 +533,70 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
         </View>
       </Modal>
 
+      <Modal visible={depositModalVisible} transparent animationType="fade" onRequestClose={() => setDepositModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Make a Deposit</Text>
+            <Text style={styles.modalText}>Enter the amount to save for this challenge.</Text>
+            <TextInput
+              style={[styles.noteInput, { marginTop: 12, fontSize: 18 }]}
+              value={depositAmount}
+              onChangeText={setDepositAmount}
+              placeholder="Amount (Tk)"
+              placeholderTextColor="#8A9B92"
+              keyboardType="decimal-pad"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={() => setDepositModalVisible(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmButton} onPress={handleDeposit}>
+                <Text style={styles.modalConfirmText}>Proceed to Pay</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      </ScrollView>
+
+      <PaymentWebViewModal
+        visible={showPaymentModal}
+        checkoutUrl={checkoutUrl}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setCheckoutUrl(null);
+        }}
+        onSuccess={async () => {
+          showToast('Payment completed successfully');
+          await loadChallenge();
+        }}
+        onFailure={() => showToast('Payment failed or was cancelled', 'error')}
+      />
+
+      <ScreenLoadingOverlay visible={loading} message="Loading challenge details..." />
+
+      <Modal visible={showVerificationNotice} transparent animationType="fade" onRequestClose={() => setShowVerificationNotice(false)}>
+        <View style={styles.noticeOverlay}>
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>Account verification pending</Text>
+            <Text style={styles.noticeText}>
+              Your account is awaiting administrator verification. Withdrawal requests are disabled until approval.
+            </Text>
+            <TouchableOpacity style={styles.noticeButton} onPress={() => setShowVerificationNotice(false)}>
+              <Text style={styles.noticeButtonText}>Okay</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Toast
         visible={toast.visible}
         message={toast.message}
         variant={toast.variant}
         onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
-    </ScrollView>
+    </View>
   );
 }
 
@@ -715,9 +862,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  actionRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
   withdrawButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
+    fontWeight: '700',
+  },
+  noticeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  noticeCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 22,
+  },
+  noticeTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10201A',
+  },
+  noticeText: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#5F6D66',
+  },
+  noticeButton: {
+    marginTop: 18,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#1E8E5A',
+  },
+  noticeButtonText: {
+    color: '#FFF',
     fontWeight: '700',
   },
   modalOverlay: {

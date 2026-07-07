@@ -12,7 +12,8 @@ const getHostFromUri = (value?: string | null) => {
   return value.replace(/^https?:\/\//, "").split(":")[0] || null;
 };
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl || Constants.manifest?.extra?.apiUrl || '';
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 
 const api = axios.create({
   baseURL: API_URL,
@@ -71,8 +72,10 @@ export const userService = {
   getStats: (userId: string) => api.get(`/users/${userId}/stats`),
   // Admin-scoped requests
   getAllStudents: () => api.get("/users"),
-  verifyStudent: (userId: string, verificationStatus: 'pending' | 'verified' | 'rejected') =>
-    api.put(`/users/${userId}/verify`, { verificationStatus }),
+  verifyStudent: (
+    userId: string,
+    verificationStatus: "pending" | "verified" | "rejected",
+  ) => api.put(`/users/${userId}/verify`, { verificationStatus }),
 };
 
 // Goal-related CRUD endpoints plus the helper used when adding savings to a goal.
@@ -96,10 +99,12 @@ export const transactionService = {
     api.get(`/transactions/goal/${goalId}`),
   // Admin-scoped requests
   getAllTransactions: () => api.get("/transactions/all"),
-  updateTransactionStatus: (transactionId: string, status: 'processing' | 'completed' | 'failed') =>
-    api.put(`/transactions/${transactionId}/status`, { status }),
+  updateTransactionStatus: (
+    transactionId: string,
+    status: "processing" | "completed" | "failed",
+  ) => api.put(`/transactions/${transactionId}/status`, { status }),
   createSslcommerzDepositSession: (data: Record<string, unknown>) =>
-    api.post('/payments/sslcommerz/initiate', data),
+    api.post("/payments/sslcommerz/initiate", data),
 };
 
 // Challenge endpoints for listing challenges, joining one, or loading the user's joined items.
@@ -107,8 +112,11 @@ export const challengeService = {
   createChallenge: (data: Record<string, unknown>) =>
     api.post("/challenges", data),
   getChallenges: () => api.get("/challenges"),
-  getAdminChallenges: (params?: { page?: number; limit?: number; status?: 'all' | 'active' | 'inactive' | 'completed' | 'cancelled' }) =>
-    api.get("/challenges/admin", { params }),
+  getAdminChallenges: (params?: {
+    page?: number;
+    limit?: number;
+    status?: "all" | "active" | "inactive" | "completed" | "cancelled";
+  }) => api.get("/challenges/admin", { params }),
   updateChallenge: (challengeId: string, data: Record<string, unknown>) =>
     api.put(`/challenges/admin/${challengeId}`, data),
   deleteChallenge: (challengeId: string) =>
@@ -119,16 +127,21 @@ export const challengeService = {
 };
 
 export const withdrawalService = {
-  requestWithdrawal: (data: Record<string, unknown>) => api.post('/withdrawals/request', data),
-  getMyWithdrawalRequests: () => api.get('/withdrawals/me'),
-  getAllWithdrawalRequests: () => api.get('/withdrawals/admin'),
-  updateWithdrawalStatus: (withdrawalId: string, status: 'approved' | 'rejected', adminNote?: string) =>
-    api.put(`/withdrawals/${withdrawalId}/status`, { status, adminNote }),
+  requestWithdrawal: (data: Record<string, unknown>) =>
+    api.post("/withdrawals/request", data),
+  getMyWithdrawalRequests: () => api.get("/withdrawals/me"),
+  getAllWithdrawalRequests: () => api.get("/withdrawals/admin"),
+  updateWithdrawalStatus: (
+    withdrawalId: string,
+    status: "approved" | "rejected",
+    adminNote?: string,
+  ) => api.put(`/withdrawals/${withdrawalId}/status`, { status, adminNote }),
 };
 
 export const notificationService = {
-  getNotifications: () => api.get('/notifications'),
-  markAsRead: (notificationId: string) => api.put(`/notifications/${notificationId}/read`),
+  getNotifications: () => api.get("/notifications"),
+  markAsRead: (notificationId: string) =>
+    api.put(`/notifications/${notificationId}/read`),
 };
 
 export default api;

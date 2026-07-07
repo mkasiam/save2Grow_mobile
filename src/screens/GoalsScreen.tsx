@@ -17,13 +17,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
-import { GoalCard, Toast } from '../components';
+import { GoalCard, ScreenLoadingOverlay, Toast } from '../components';
 import { goalService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
+import { getFriendlyErrorMessage } from '../utils/errorMessages';
 
 type GoalItem = {
   id: string;
+  entityType?: 'goal' | 'userChallenge';
+  userChallengeId?: string;
   title: string;
   description: string;
   target: number;
@@ -43,6 +46,8 @@ const formatDateForInput = (date: Date) => {
 
 const mapGoal = (goal: any): GoalItem => ({
   id: goal._id || goal.id,
+  entityType: goal.entityType || goal.sourceType || 'goal',
+  userChallengeId: goal.userChallengeId || undefined,
   title: goal.title,
   description: goal.description || '',
   target: Number(goal.targetAmount || goal.target || 0),
@@ -124,6 +129,7 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
   const [sortBy, setSortBy] = useState('latest');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [activeDateField, setActiveDateField] = useState<null | 'targetDate' | 'nextContributionDate'>(null);
@@ -142,8 +148,12 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
     icon: '🎯',
   });
 
-  const loadGoals = useCallback(async () => {
-    setLoading(true);
+  const loadGoals = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const [goalData, settings] = await Promise.all([
         goalService.getGoals(),
@@ -153,8 +163,10 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
       setLanguage(settings.language);
     } catch (error) {
       console.error('Error loading goals:', error);
+      showToast(getFriendlyErrorMessage(error, 'Unable to load goals right now.'), 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -260,7 +272,7 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
       loadGoals();
     } catch (error) {
       console.error('Error creating goal:', error);
-      showToast(text.goalCreateFailed, 'error');
+      showToast(getFriendlyErrorMessage(error, text.goalCreateFailed), 'error');
     }
   };
 
@@ -438,12 +450,14 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
             targetAmount={item.target}
             category={item.category}
             icon={item.icon}
-            onPress={() => navigation.navigate('GoalDetail', { goalId: item.id })}
+            onPress={() => item.entityType === 'userChallenge'
+              ? navigation.navigate('ChallengeDetail', { challengeId: item.id })
+              : navigation.navigate('GoalDetail', { goalId: item.id })}
           />
         )}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadGoals} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadGoals(true)} />
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -459,6 +473,8 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
           </View>
         }
       />
+
+      <ScreenLoadingOverlay visible={loading} message="Loading goals..." />
 
       <Modal visible={showCreateModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>

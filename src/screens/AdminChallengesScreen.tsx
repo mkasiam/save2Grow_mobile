@@ -264,11 +264,7 @@ export default function AdminChallengesScreen() {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Challenges</Text>
-          {loading && challenges.length === 0 ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#1E8E5A" />
-            </View>
-          ) : challenges.length ? (
+          {challenges.length ? (
             <View style={styles.listWrap}>{challenges.map(renderChallengeCard)}</View>
           ) : (
             <View style={styles.emptyWrap}>
@@ -346,12 +342,8 @@ export default function AdminChallengesScreen() {
           />
 
           <TouchableOpacity style={[styles.submitButton, loading && styles.submitButtonDisabled]} onPress={handleCreateChallenge} disabled={loading}>
-            {loading ? <ActivityIndicator size="small" color="#FFF" /> : (
-              <>
-                <Ionicons name="rocket-outline" size={20} color="#FFF" />
-                <Text style={styles.submitButtonText}>Launch Challenge</Text>
-              </>
-            )}
+            <Ionicons name="rocket-outline" size={20} color="#FFF" />
+            <Text style={styles.submitButtonText}>{loading ? 'Creating...' : 'Launch Challenge'}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -392,6 +384,8 @@ export default function AdminChallengesScreen() {
         variant={toast.variant}
         onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
       />
+
+      <ScreenLoadingOverlay visible={loading} message="Processing..." />
     </View>
   );
 }

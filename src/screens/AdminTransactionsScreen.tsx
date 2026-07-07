@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { transactionService, withdrawalService } from '../services/api';
-import { Toast } from '../components';
+import { Toast, ScreenLoadingOverlay } from '../components';
 
 type TransactionItem = {
   id: string;
@@ -46,6 +46,7 @@ export default function AdminTransactionsScreen() {
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'failed'>('all');
   const [viewMode, setViewMode] = useState<'transactions' | 'withdrawals'>('transactions');
@@ -55,8 +56,12 @@ export default function AdminTransactionsScreen() {
     setToast({ visible: true, message, variant });
   };
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const [transactionsResponse, withdrawalsResponse] = await Promise.all([
         transactionService.getAllTransactions(),
@@ -94,6 +99,7 @@ export default function AdminTransactionsScreen() {
       showToast('Failed to load records', 'error');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -358,27 +364,23 @@ export default function AdminTransactionsScreen() {
         </View>
       </View>
 
-      {loading && transactions.length === 0 && withdrawalRequests.length === 0 ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#1E8E5A" />
-        </View>
-      ) : (
-        <FlatList
-          data={viewMode === 'transactions' ? filteredTransactions : filteredWithdrawals}
-          renderItem={viewMode === 'transactions' ? renderTransactionItem : renderWithdrawalItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchData} colors={['#1E8E5A']} />}
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="swap-horizontal-outline" size={64} color="#C4D7CE" />
-              <Text style={styles.emptyText}>
-                {viewMode === 'transactions' ? 'No transaction records found' : 'No withdrawal requests found'}
-              </Text>
-            </View>
-          }
-        />
-      )}
+      <FlatList
+        data={(viewMode === 'transactions' ? filteredTransactions : filteredWithdrawals) as any[]}
+        renderItem={(viewMode === 'transactions' ? renderTransactionItem : renderWithdrawalItem) as any}
+        keyExtractor={(item: any) => item.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} colors={['#1E8E5A']} />}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Ionicons name="swap-horizontal-outline" size={64} color="#C4D7CE" />
+            <Text style={styles.emptyText}>
+              {viewMode === 'transactions' ? 'No transaction records found' : 'No withdrawal requests found'}
+            </Text>
+          </View>
+        }
+      />
+
+      <ScreenLoadingOverlay visible={loading} message="Loading records..." />
 
       <Toast
         visible={toast.visible}

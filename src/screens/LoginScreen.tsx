@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../hooks/useAuth";
 import { validateLogin } from "../utils/validators";
 import { getStoredAppSettings } from "../utils/appSettings";
 import { getCopy } from "../utils/copy";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function LoginScreen({ navigation }: { navigation: any }) {
   const { login, loading } = useAuth();
@@ -52,10 +52,18 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>💰 Save2Grow</Text>
+      <View style={styles.headerHero}>
+        <View style={styles.iconShell}>
+          <Ionicons name="leaf" size={20} color="#F6FFF9" />
+        </View>
+        <View style={styles.textWrap}>
+          <Text style={styles.save}>Save</Text>
+          <Text style={styles.grow}>2Grow</Text>
+        </View>
         <Text style={styles.subtitle}>{text.loginToAccount}</Text>
+      </View>
 
+      <View style={styles.content}>
         <Text style={styles.label}>Email</Text>
         <TextInput
           style={[styles.input, errors.email && styles.inputError]}
@@ -86,11 +94,7 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
           onPress={handleLogin}
           disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator size={18} color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>{text.login}</Text>
-          )}
+          <Text style={styles.buttonText}>{loading ? 'Logging in...' : text.login}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate("Register")}>
@@ -107,24 +111,62 @@ export default function LoginScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: "#F2F7F4",
+  },
+  headerHero: {
+    backgroundColor: '#E8F4EE',
+    paddingVertical: 70,
+    alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D6E8DE',
+  },
+  iconShell: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E8E5A',
+    shadowColor: '#173629',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  textWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  save: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#173629',
+    letterSpacing: 0.5,
+  },
+  grow: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#2D8C62',
+    letterSpacing: 0.5,
+  },
+  logoIcon: {
+    fontSize: 36,
   },
   content: {
-    padding: 20,
-    paddingTop: 60,
+    padding: 24,
+    paddingTop: 32,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
-    marginBottom: 8,
-    textAlign: "center",
-    marginTop: 18,
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#0E2018",
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 40,
+    fontSize: 14,
+    color: "#5E776C",
+    marginTop: 6,
   },
   label: {
     fontSize: 14,
@@ -134,32 +176,33 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E0E0E0",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#E2ECE7",
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 20,
-    fontSize: 16,
-    backgroundColor: "#F9F9F9",
+    fontSize: 15,
+    backgroundColor: "#FFF",
+    color: "#10201A",
   },
   inputError: {
-    borderColor: "#FF3B30",
+    borderColor: "#D94C3D",
   },
   errorText: {
-    color: "#FF3B30",
+    color: "#D94C3D",
     fontSize: 12,
     marginTop: -16,
     marginBottom: 16,
   },
   button: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 14,
-    borderRadius: 8,
+    backgroundColor: "#1E8E5A",
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 14,
+    marginBottom: 24,
   },
   buttonDisabled: {
-    opacity: 0.6,
+    backgroundColor: "#7BB89A",
   },
   buttonText: {
     color: "#FFF",
@@ -168,12 +211,12 @@ const styles = StyleSheet.create({
   },
   linkText: {
     textAlign: "center",
-    color: "#666",
+    color: "#5E776C",
     fontSize: 14,
     marginBottom: 30,
   },
   linkBold: {
-    color: "#007AFF",
-    fontWeight: "600",
+    color: "#1E8E5A",
+    fontWeight: "700",
   },
 });

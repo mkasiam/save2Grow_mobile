@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
   Alert,
-  Linking,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,8 +17,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { goalService, transactionService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
+import { getFriendlyErrorMessage } from '../utils/errorMessages';
 import { useAuth } from '../hooks/useAuth';
-import { SavingsChart, Toast } from '../components';
+import { PaymentWebViewModal, ScreenLoadingOverlay, SavingsChart, Toast } from '../components';
 
 const PAYMENT_METHODS = ['bkash', 'nagad', 'bank'];
 const CONTRIBUTION_FREQUENCIES = [
@@ -120,7 +120,7 @@ const normalizeTransaction = (value: any) => ({
 
 export default function GoalDetailScreen({ route, navigation }: { route: any; navigation: any }) {
   const { goalId } = route.params;
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [goal, setGoal] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [language, setLanguage] = useState<'en' | 'bn'>('en');
@@ -142,6 +142,10 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
   const [activeDateField, setActiveDateField] = useState<null | 'targetDate' | 'nextContributionDate'>(null);
   const [pickerDate, setPickerDate] = useState(new Date());
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showVerificationNotice, setShowVerificationNotice] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', variant: 'success' });
   const [editForm, setEditForm] = useState({
     title: '',
@@ -153,6 +157,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
   });
 
   const loadGoalDetail = useCallback(async () => {
+    setLoading(true);
     try {
       const [goalResponse, transactionResponse, settings] = await Promise.all([
         goalService.getGoal(goalId),
@@ -164,6 +169,9 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
       setLanguage(settings.language);
     } catch (error) {
       console.error('Error loading goal details:', error);
+      showToast(getFriendlyErrorMessage(error, 'Unable to load this goal right now.'), 'error');
+    } finally {
+      setLoading(false);
     }
   }, [goalId]);
 
@@ -177,6 +185,33 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
 
   const showToast = (message: string, variant: 'success' | 'error' = 'success') => {
     setToast({ visible: true, message, variant });
+  };
+
+  const isVerifiedStudent = user?.verificationStatus === 'verified';
+
+  const requireVerification = () => {
+    if (isVerifiedStudent) {
+      return true;
+    }
+
+    setShowVerificationNotice(true);
+    return false;
+  };
+
+  const openDepositModal = () => {
+    if (!requireVerification()) {
+      return;
+    }
+
+    setShowDepositModal(true);
+  };
+
+  const openWithdrawModal = () => {
+    if (!requireVerification()) {
+      return;
+    }
+
+    setShowWithdrawModal(true);
   };
 
   const openEditModal = () => {
@@ -254,18 +289,18 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
         paymentMethod: depositForm.paymentMethod,
       });
 
-      setDepositForm({ amount: '', description: '', paymentMethod: 'bkash' });
-      setShowDepositModal(false);
       const gatewayUrl = sessionResponse.data?.gatewayPageURL;
       if (!gatewayUrl) {
         throw new Error('Gateway URL was not returned by SSLCommerz');
       }
 
-      await Linking.openURL(gatewayUrl);
-      showToast('Complete the SSLCommerz checkout to finish your deposit');
+      setDepositForm({ amount: '', description: '', paymentMethod: 'bkash' });
+      setShowDepositModal(false);
+      setCheckoutUrl(gatewayUrl);
+      setShowPaymentModal(true);
     } catch (error) {
       console.error('Error saving deposit:', error);
-      showToast('SSLCommerz checkout could not be started', 'error');
+      showToast(getFriendlyErrorMessage(error, 'SSLCommerz checkout could not be started'), 'error');
     }
   };
 
@@ -307,7 +342,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
       showToast(`Tk ${parsedAmount.toLocaleString()} withdrawn`);
     } catch (error: any) {
       console.error('Error saving withdrawal:', error);
-      showToast(error.message || 'Withdrawal could not be saved', 'error');
+      showToast(getFriendlyErrorMessage(error, 'Transaction failed. Please check your balance and try again.'), 'error');
     }
   };
 
@@ -366,6 +401,21 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
         },
       ]
     );
+  };
+
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setCheckoutUrl(null);
+  };
+
+  const handlePaymentSuccess = async () => {
+    showToast('Payment completed successfully');
+    await loadGoalDetail();
+    await refreshUser();
+  };
+
+  const handlePaymentFailure = () => {
+    showToast('Payment could not be completed', 'error');
   };
 
   if (!goal) {
@@ -522,7 +572,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
         <View style={styles.actionSection}>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => setShowDepositModal(true)}
+            onPress={openDepositModal}
           >
             <Ionicons name="add-circle" size={20} color="#FFF" />
             <Text style={styles.primaryButtonText}>{text.addSavings}</Text>
@@ -530,7 +580,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
 
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => setShowWithdrawModal(true)}
+            onPress={openWithdrawModal}
           >
             <Ionicons name="wallet" size={20} color="#FF3B30" />
             <Text style={styles.secondaryButtonText}>{text.withdraw}</Text>
@@ -539,6 +589,8 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
 
         <View style={styles.spacing} />
       </ScrollView>
+
+      <ScreenLoadingOverlay visible={loading} message="Loading goal details..." />
 
       <Modal visible={showDepositModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -596,6 +648,20 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
 
             <TouchableOpacity style={styles.modalButton} onPress={handleDeposit}>
               <Text style={styles.modalButtonText}>Pay with SSLCommerz</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showVerificationNotice} transparent animationType="fade" onRequestClose={() => setShowVerificationNotice(false)}>
+        <View style={styles.noticeOverlay}>
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>Account verification pending</Text>
+            <Text style={styles.noticeText}>
+              Your account is awaiting administrator verification. Deposits and withdrawals are disabled until approval.
+            </Text>
+            <TouchableOpacity style={styles.noticeButton} onPress={() => setShowVerificationNotice(false)}>
+              <Text style={styles.noticeButtonText}>Okay</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -819,6 +885,14 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
           </View>
         </View>
       </Modal>
+
+      <PaymentWebViewModal
+        visible={showPaymentModal}
+        checkoutUrl={checkoutUrl}
+        onClose={closePaymentModal}
+        onSuccess={handlePaymentSuccess}
+        onFailure={handlePaymentFailure}
+      />
 
       <Modal visible={showCelebration} transparent animationType="fade">
         <View style={styles.celebrationOverlay}>
@@ -1195,6 +1269,39 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  noticeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  noticeCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 22,
+  },
+  noticeTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10201A',
+  },
+  noticeText: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#5F6D66',
+  },
+  noticeButton: {
+    marginTop: 18,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#1E8E5A',
+  },
+  noticeButtonText: {
+    color: '#FFF',
+    fontWeight: '700',
   },
   modalButtonText: {
     color: '#FFF',

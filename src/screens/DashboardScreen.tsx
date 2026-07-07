@@ -13,10 +13,12 @@ import { useAuth } from '../hooks/useAuth';
 import { goalService, transactionService, userService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
-import { SavingsChart } from '../components';
+import { ScreenLoadingOverlay, SavingsChart } from '../components';
+import { getFriendlyErrorMessage } from '../utils/errorMessages';
 
 type DashboardGoal = {
   id: string;
+  entityType?: 'goal' | 'userChallenge';
   title: string;
   description?: string;
   target: number;
@@ -48,6 +50,7 @@ type DashboardStats = {
 
 const mapGoal = (goal: any): DashboardGoal => ({
   id: goal._id || goal.id,
+  entityType: goal.entityType || goal.sourceType || 'goal',
   title: goal.title,
   description: goal.description,
   target: Number(goal.targetAmount || goal.target || 0),
@@ -95,10 +98,15 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
   const [profileUser, setProfileUser] = useState<any>(null);
   const [language, setLanguage] = useState<'en' | 'bn'>('en');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
+  const loadDashboard = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       if (!user?.id) {
         return;
@@ -136,10 +144,23 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
       }).length);
     } catch (error) {
       console.error('Error loading dashboard:', error);
+      setStats(null);
+      setGoals([]);
+      setTransactions([]);
+      setUnreadCount(0);
+      setLanguage((prev) => prev);
+      // Keep the failure visible without leaking internals.
+      setProfileUser((prev: any) => prev);
+      setGoals([]);
+      setTransactions([]);
+      setUnreadCount(0);
+      setStats(null);
+      setProfileUser((prev: any) => prev);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -153,7 +174,7 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
     <ScrollView
       style={styles.container}
       refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={loadDashboard} />
+        <RefreshControl refreshing={refreshing} onRefresh={() => loadDashboard(true)} />
       }
     >
       <View style={styles.header}>
@@ -249,7 +270,9 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
           <TouchableOpacity
             key={goal.id}
             style={styles.goalItem}
-            onPress={() => navigation.navigate('GoalDetail', { goalId: goal.id })}
+            onPress={() => goal.entityType === 'userChallenge'
+              ? navigation.navigate('ChallengeDetail', { challengeId: goal.id })
+              : navigation.navigate('GoalDetail', { goalId: goal.id })}
           >
             <View style={styles.goalLeft}>
               <Text style={styles.goalIcon}>{goal.icon}</Text>
@@ -363,6 +386,8 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
       </View>
 
       <View style={styles.spacing} />
+
+      <ScreenLoadingOverlay visible={loading} message="Loading dashboard..." />
     </ScrollView>
   );
 }
