@@ -22,7 +22,8 @@ const formatMethod = (method: any) => {
   return method.toUpperCase();
 };
 
-export default function TransactionHistoryScreen() {
+export default function TransactionHistoryScreen({ route }: { route: any }) {
+  const { goalId, userChallengeId } = route?.params || {};
   const [transactions, setTransactions] = useState<any[]>([]);
   const [goalsMap, setGoalsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,7 @@ export default function TransactionHistoryScreen() {
     setLoading(true);
     try {
       const [transactionResponse, goalsResponse, settings] = await Promise.all([
-        transactionService.getTransactions(),
+        transactionService.getTransactions(goalId || userChallengeId ? { goalId, userChallengeId } : undefined),
         goalService.getGoals(),
         getStoredAppSettings(),
       ]);
@@ -56,7 +57,7 @@ export default function TransactionHistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [goalId, userChallengeId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,13 +66,18 @@ export default function TransactionHistoryScreen() {
   );
 
   const text = getCopy(language);
-  const totalIn = transactions
+  const scopedTransactions = transactions.filter((item: any) => {
+    const matchesGoal = goalId ? (item.goalId?._id || item.goalId) === goalId : true;
+    const matchesChallenge = userChallengeId ? (item.userChallengeId?._id || item.userChallengeId) === userChallengeId : true;
+    return matchesGoal && matchesChallenge;
+  });
+  const totalIn = scopedTransactions
     .filter((item: any) => item.type === 'deposit')
     .reduce((sum, item: any) => sum + Number(item.amount), 0);
-  const totalOut = transactions
+  const totalOut = scopedTransactions
     .filter((item: any) => item.type === 'withdrawal')
     .reduce((sum, item: any) => sum + Number(item.amount), 0);
-  const filteredTransactions = transactions.filter((item: any) => {
+  const filteredTransactions = scopedTransactions.filter((item: any) => {
     const goalId = item.goalId?._id || item.goalId;
     const matchesType = filter === 'all' ? true : item.type === filter;
     const searchTarget = [
@@ -93,6 +99,8 @@ export default function TransactionHistoryScreen() {
 
   const renderItem = ({ item }: { item: any }) => {
     const isDeposit = item.type === 'deposit';
+    const isPendingWithdrawal = item.type === 'withdrawal' && item.status === 'pending';
+    const transactionLabel = isPendingWithdrawal ? 'Withdrawal Request' : isDeposit ? 'Deposit' : 'Withdrawal';
     const goalId = item.goalId?._id || item.goalId;
     const itemDate = new Date(item.createdAt || item.date).toLocaleDateString();
 
@@ -125,7 +133,7 @@ export default function TransactionHistoryScreen() {
                   isDeposit ? styles.deposit : styles.withdrawal,
                 ]}
               >
-                {isDeposit ? 'Deposit' : 'Withdraw'}
+                {transactionLabel}
               </Text>
             </View>
           </View>

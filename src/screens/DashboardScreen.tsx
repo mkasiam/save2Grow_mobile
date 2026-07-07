@@ -165,6 +165,7 @@ export default function DashboardScreen({ navigation }: { navigation: any }) {
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
+      return undefined;
     }, [loadDashboard])
   );
 

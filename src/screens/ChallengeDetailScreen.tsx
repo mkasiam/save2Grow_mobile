@@ -49,36 +49,17 @@ const mapChallenge = (challenge: any, userId: string) => {
   };
 };
 
-const getCurrentValue = (challenge: any, stats: any, transactions: any[], goals: any[], userChallenges: any[]) => {
+const getCurrentValue = (challenge: any, _stats: any, _transactions: any[], _goals: any[], userChallenges: any[]) => {
   if (!challenge) {
     return 0;
   }
 
   const ucMatch = userChallenges.find((item) => (item._id || item.id) === challenge.id);
   if (ucMatch && ucMatch.currentAmount !== undefined) {
-    return Number(ucMatch.currentAmount);
+    return Number(ucMatch.currentAmount || 0);
   }
 
-  if (challenge.type === 'save_amount') {
-    return Number(stats?.totalSavings || 0);
-  }
-
-  if (challenge.type === 'save_days') {
-    return transactions.filter((item: any) => item.type === 'deposit').length;
-  }
-
-  if (challenge.type === 'save_percentage') {
-    return goals
-      .filter((goal: any) => goal.entityType !== 'userChallenge')
-      .reduce((highest: number, goal: any) => {
-      const target = Number(goal.targetAmount || goal.target || 0);
-      const current = Number(goal.currentAmount || goal.current || 0);
-      const progress = target > 0 ? Math.round((current / target) * 100) : 0;
-      return Math.max(highest, progress);
-    }, 0);
-  }
-
-  return Number(stats?.totalSavings || 0);
+  return 0;
 };
 
 const formatChallengeValue = (value: number, challengeType: string) => {
@@ -99,7 +80,7 @@ const getUserChallengeId = (userChallenges: any[], challengeId: string) => {
   const match = userChallenges.find((item) => (item._id || item.id) === challengeId);
   return match?.userChallengeId || match?.userChallengeId?._id || match?.userChallengeId?.id || null;
 };
-export default function ChallengeDetailScreen({ route }: { route: any }) {
+export default function ChallengeDetailScreen({ route, navigation }: { route: any; navigation: any }) {
   const { user } = useAuth();
   const challengeId = route.params?.challengeId;
   const [challenge, setChallenge] = useState<any>(null);
@@ -342,6 +323,11 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
   const currentValue = getCurrentValue(challenge, stats, transactions, goals, userChallenges);
   const progressRatio = Math.min(currentValue / Math.max(challenge.target, 1), 1);
   const progressPercent = Math.round(progressRatio * 100);
+  const userChallengeId = getUserChallengeId(userChallenges, challenge.id);
+  const scopedTransactions = transactions.filter((item: any) => {
+    const transactionUserChallengeId = item.userChallengeId?._id || item.userChallengeId;
+    return transactionUserChallengeId === userChallengeId;
+  }).slice(0, 2);
   const participantNames = participants
     .map((participant: any) => participant?.name || participant?.email || 'Participant')
     .filter(Boolean);
@@ -452,6 +438,38 @@ export default function ChallengeDetailScreen({ route }: { route: any }) {
         ) : (
           <Text style={styles.supportText}>No participants yet.</Text>
         )}
+      </View>
+
+      <View style={styles.breakdownCard}>
+        <Text style={styles.sectionTitle}>Recent Activity</Text>
+        {scopedTransactions.length ? (
+          scopedTransactions.map((transaction: any) => {
+            const isPendingWithdrawal = transaction.type === 'withdrawal' && transaction.status === 'pending';
+            const transactionLabel = isPendingWithdrawal ? 'Withdrawal Request' : transaction.type === 'withdrawal' ? 'Withdrawal' : 'Deposit';
+
+            return (
+              <View key={transaction._id || transaction.id} style={styles.activityRow}>
+                <View style={styles.activityTextWrap}>
+                  <Text style={styles.activityTitle}>{transaction.description || transactionLabel}</Text>
+                  <View style={[styles.transactionBadge, isPendingWithdrawal && styles.pendingBadge]}>
+                    <Text style={[styles.transactionBadgeText, isPendingWithdrawal && styles.pendingBadgeText]}>{transactionLabel}</Text>
+                  </View>
+                  <Text style={styles.activityMeta}>{transaction.paymentMethod || 'manual'} • {new Date(transaction.createdAt || transaction.date).toLocaleDateString()}</Text>
+                </View>
+                <Text style={[styles.activityAmount, transaction.type === 'deposit' ? styles.depositAmount : styles.withdrawalAmount]}>
+                  {transaction.type === 'deposit' ? '+' : '-'}Tk {Number(transaction.amount).toLocaleString()}
+                </Text>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.supportText}>No recent activity yet.</Text>
+        )}
+        {transactions.filter((item: any) => (item.userChallengeId?._id || item.userChallengeId) === userChallengeId).length > 2 ? (
+          <TouchableOpacity style={styles.seeMoreButton} onPress={() => navigation.navigate('TransactionHistory', { userChallengeId, scope: 'challenge' })}>
+            <Text style={styles.seeMoreButtonText}>See More</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <TouchableOpacity
@@ -852,6 +870,65 @@ const styles = StyleSheet.create({
   actionButtonMuted: {
     backgroundColor: '#E3ECE7',
   },
+  activityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF3F0',
+    marginTop: 8,
+  },
+  activityTextWrap: {
+    flex: 1,
+    marginRight: 10,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#13241D',
+  },
+  activityMeta: {
+    fontSize: 12,
+    color: '#60756B',
+    marginTop: 4,
+  },
+  activityAmount: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  transactionBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EAF3EE',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+  },
+  pendingBadge: {
+    backgroundColor: '#FFF2CC',
+  },
+  transactionBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2D6A4F',
+  },
+  pendingBadgeText: {
+    color: '#A36B00',
+  },
+  seeMoreButton: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#173629',
+  },
+  seeMoreButtonText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   withdrawButton: {
     marginTop: 12,
     backgroundColor: '#173629',
@@ -995,5 +1072,11 @@ const styles = StyleSheet.create({
   },
   actionTextMuted: {
     color: '#486258',
+  },
+  depositAmount: {
+    color: '#34C759',
+  },
+  withdrawalAmount: {
+    color: '#FF3B30',
   },
 });

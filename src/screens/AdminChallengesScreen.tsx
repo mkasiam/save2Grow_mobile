@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { challengeService } from '../services/api';
-import { Toast } from '../components';
+import { ScreenLoadingOverlay, Toast } from '../components';
 
 const CHALLENGE_TYPES = [
   { id: 'save_amount', label: 'Save Amount' },

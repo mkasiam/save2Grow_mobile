@@ -431,6 +431,11 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
   const daysLeft = Math.ceil(
     (new Date(goal.targetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
+  const recentTransactions = [...transactions].slice(0, 2);
+
+  const handleSeeMoreTransactions = () => {
+    navigation.navigate('TransactionHistory', { goalId: goal.id, scope: 'goal' });
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -532,41 +537,61 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{text.recentTransactions}</Text>
 
-          {transactions.length > 0 ? (
-            transactions.map((transaction) => (
-              <View key={transaction.id} style={styles.transactionItem}>
-                <View style={styles.transactionLeft}>
-                  <Text style={styles.transactionIcon}>
-                    {transaction.type === 'deposit' ? '➕' : '➖'}
-                  </Text>
-                  <View style={styles.transactionTextWrap}>
-                    <Text style={styles.transactionDescription}>
-                      {transaction.description}
+          {recentTransactions.length > 0 ? (
+            recentTransactions.map((transaction) => {
+              const isPendingWithdrawal = transaction.type === 'withdrawal' && transaction.status === 'pending';
+              const transactionLabel = isPendingWithdrawal
+                ? 'Withdrawal Request'
+                : transaction.type === 'withdrawal'
+                  ? 'Withdrawal'
+                  : 'Deposit';
+
+              return (
+                <View key={transaction.id} style={styles.transactionItem}>
+                  <View style={styles.transactionLeft}>
+                    <Text style={styles.transactionIcon}>
+                      {transaction.type === 'deposit' ? '➕' : '➖'}
                     </Text>
-                    <Text style={styles.transactionDate}>
-                      {transaction.paymentMethod || 'manual'} • {transaction.date}
-                    </Text>
-                    {transaction.note ? (
-                      <Text style={styles.transactionNote}>{transaction.note}</Text>
-                    ) : null}
+                    <View style={styles.transactionTextWrap}>
+                      <Text style={styles.transactionDescription}>
+                        {transaction.description || transactionLabel}
+                      </Text>
+                      <View style={[styles.transactionBadge, isPendingWithdrawal && styles.pendingBadge]}>
+                        <Text style={[styles.transactionBadgeText, isPendingWithdrawal && styles.pendingBadgeText]}>
+                          {transactionLabel}
+                        </Text>
+                      </View>
+                      <Text style={styles.transactionDate}>
+                        {transaction.paymentMethod || 'manual'} • {transaction.date}
+                      </Text>
+                      {transaction.note ? (
+                        <Text style={styles.transactionNote}>{transaction.note}</Text>
+                      ) : null}
+                    </View>
                   </View>
+                  <Text
+                    style={[
+                      styles.transactionAmount,
+                      transaction.type === 'deposit'
+                        ? styles.depositAmount
+                        : styles.withdrawalAmount,
+                    ]}
+                  >
+                    {transaction.type === 'deposit' ? '+' : '-'}Tk{' '}
+                    {Number(transaction.amount).toLocaleString()}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.transactionAmount,
-                    transaction.type === 'deposit'
-                      ? styles.depositAmount
-                      : styles.withdrawalAmount,
-                  ]}
-                >
-                  {transaction.type === 'deposit' ? '+' : '-'}Tk{' '}
-                  {Number(transaction.amount).toLocaleString()}
-                </Text>
-              </View>
-            ))
+              );
+            })
           ) : (
             <Text style={styles.noTransactions}>{text.noTransactions}</Text>
           )}
+
+          {transactions.length > 2 ? (
+            <TouchableOpacity style={styles.seeMoreButton} onPress={handleSeeMoreTransactions}>
+              <Text style={styles.seeMoreButtonText}>See More</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.actionSection}>
@@ -1087,6 +1112,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#10201A',
   },
+  transactionBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EAF3EE',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+  },
+  pendingBadge: {
+    backgroundColor: '#FFF2CC',
+  },
+  transactionBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2D6A4F',
+  },
+  pendingBadgeText: {
+    color: '#A36B00',
+  },
   transactionDate: {
     fontSize: 12,
     color: '#73877D',
@@ -1112,6 +1156,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#73877D',
     paddingVertical: 20,
+  },
+  seeMoreButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#173629',
+  },
+  seeMoreButtonText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   actionSection: {
     padding: 20,

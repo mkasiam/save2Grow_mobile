@@ -125,6 +125,7 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
   const { width } = useWindowDimensions();
   const [goals, setGoals] = useState<GoalItem[]>([]);
   const [filter, setFilter] = useState('all');
+  const [goalTypeFilter, setGoalTypeFilter] = useState<'all' | 'personal' | 'challenge'>('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState('latest');
   const [searchQuery, setSearchQuery] = useState('');
@@ -173,6 +174,7 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
   useFocusEffect(
     useCallback(() => {
       loadGoals();
+      return undefined;
     }, [loadGoals])
   );
 
@@ -184,6 +186,17 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
     .filter((goal) => {
       if (filter === 'active') return goal.status === 'active';
       if (filter === 'completed') return goal.status === 'completed';
+      return true;
+    })
+    .filter((goal) => {
+      if (goalTypeFilter === 'challenge') {
+        return goal.entityType === 'userChallenge' || Boolean(goal.userChallengeId);
+      }
+
+      if (goalTypeFilter === 'personal') {
+        return goal.entityType !== 'userChallenge' && !goal.userChallengeId;
+      }
+
       return true;
     })
     .filter((goal) => {
@@ -345,6 +358,24 @@ export default function GoalsScreen({ navigation }: { navigation: any }) {
         <TouchableOpacity style={styles.addButton} onPress={() => setShowCreateModal(true)}>
           <Ionicons name="add-circle" size={40} color="#1E8E5A" />
         </TouchableOpacity>
+      </View>
+
+      <View style={[styles.filterContainer, styles.primaryFilterRow]}>
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'personal', label: 'Personal Goals' },
+          { id: 'challenge', label: 'Platform Challenges' },
+        ].map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.filterButton, goalTypeFilter === item.id && styles.filterButtonActive]}
+            onPress={() => setGoalTypeFilter(item.id as 'all' | 'personal' | 'challenge')}
+          >
+            <Text style={[styles.filterButtonText, goalTypeFilter === item.id && styles.filterButtonTextActive]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <View style={[styles.filterContainer, styles.primaryFilterRow]}>

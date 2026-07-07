@@ -94,7 +94,8 @@ export const goalService = {
 export const transactionService = {
   createTransaction: (data: Record<string, unknown>) =>
     api.post("/transactions", data),
-  getTransactions: () => api.get("/transactions"),
+  getTransactions: (params?: { goalId?: string; userChallengeId?: string }) =>
+    api.get("/transactions", { params }),
   getGoalTransactions: (goalId: string) =>
     api.get(`/transactions/goal/${goalId}`),
   // Admin-scoped requests
