@@ -286,12 +286,14 @@ export default function ChallengeDetailScreen({ route, navigation }: { route: an
     }
 
     try {
-      const sessionResponse = await transactionService.createSslcommerzDepositSession({
+      const payload = {
         userChallengeId,
         amount: parsedAmount,
         description: '',
         paymentMethod: 'sslcommerz',
-      });
+      };
+
+      const sessionResponse = await transactionService.createSslcommerzDepositSession(payload);
 
       const gatewayUrl = sessionResponse.data?.gatewayPageURL;
       if (!gatewayUrl) {

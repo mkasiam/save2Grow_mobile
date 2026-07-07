@@ -282,12 +282,15 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
     }
 
     try {
-      const sessionResponse = await transactionService.createSslcommerzDepositSession({
+      const description = (depositForm.description ?? '').trim();
+      const payload = {
         goalId: goal.id,
         amount: parsedAmount,
-        description: depositForm.description?.trim() || '',
+        description: description || '',
         paymentMethod: depositForm.paymentMethod,
-      });
+      };
+
+      const sessionResponse = await transactionService.createSslcommerzDepositSession(payload);
 
       const gatewayUrl = sessionResponse.data?.gatewayPageURL;
       if (!gatewayUrl) {
@@ -321,13 +324,15 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
     }
 
     try {
+      const description = (withdrawForm.description ?? '').trim();
+      const note = (withdrawForm.note ?? '').trim();
       await transactionService.createTransaction({
         goalId: goal.id,
         type: 'withdrawal',
         amount: parsedAmount,
-        description: withdrawForm.description?.trim() || '',
+        description: description || '',
         paymentMethod: withdrawForm.paymentMethod,
-        note: withdrawForm.note?.trim() || '',
+        note: note || '',
       });
 
       await loadGoalDetail();
