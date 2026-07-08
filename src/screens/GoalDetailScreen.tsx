@@ -19,6 +19,7 @@ import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
 import { getFriendlyErrorMessage } from '../utils/errorMessages';
 import { useAuth } from '../hooks/useAuth';
+import { useTransaction } from '../hooks/useTransaction';
 import { PaymentWebViewModal, ScreenLoadingOverlay, SavingsChart, Toast } from '../components';
 
 const PAYMENT_METHODS = ['bkash', 'nagad', 'bank'];
@@ -121,6 +122,7 @@ const normalizeTransaction = (value: any) => ({
 export default function GoalDetailScreen({ route, navigation }: { route: any; navigation: any }) {
   const { goalId } = route.params;
   const { user, refreshUser } = useAuth();
+  const { executeTransaction, startDepositSession } = useTransaction();
   const [goal, setGoal] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [language, setLanguage] = useState<'en' | 'bn'>('en');
@@ -283,14 +285,13 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
 
     try {
       const description = (depositForm.description ?? '').trim();
-      const payload = {
+      const sessionResponse = await startDepositSession({
         goalId: goal.id,
         amount: parsedAmount,
-        description: description || '',
+        description,
+        descriptionFallback: 'Goal Deposit',
         paymentMethod: depositForm.paymentMethod,
-      };
-
-      const sessionResponse = await transactionService.createSslcommerzDepositSession(payload);
+      });
 
       const gatewayUrl = sessionResponse.data?.gatewayPageURL;
       if (!gatewayUrl) {
@@ -326,7 +327,7 @@ export default function GoalDetailScreen({ route, navigation }: { route: any; na
     try {
       const description = (withdrawForm.description ?? '').trim();
       const note = (withdrawForm.note ?? '').trim();
-      await transactionService.createTransaction({
+      await executeTransaction({
         goalId: goal.id,
         type: 'withdrawal',
         amount: parsedAmount,

@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../hooks/useAuth';
+import { useTransaction } from '../hooks/useTransaction';
 import { challengeService, goalService, transactionService, userService, withdrawalService } from '../services/api';
 import { getStoredAppSettings } from '../utils/appSettings';
 import { getCopy } from '../utils/copy';
@@ -82,6 +83,7 @@ const getUserChallengeId = (userChallenges: any[], challengeId: string) => {
 };
 export default function ChallengeDetailScreen({ route, navigation }: { route: any; navigation: any }) {
   const { user } = useAuth();
+  const { startDepositSession } = useTransaction();
   const challengeId = route.params?.challengeId;
   const [challenge, setChallenge] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
@@ -286,14 +288,13 @@ export default function ChallengeDetailScreen({ route, navigation }: { route: an
     }
 
     try {
-      const payload = {
+      const sessionResponse = await startDepositSession({
         userChallengeId,
         amount: parsedAmount,
         description: '',
+        descriptionFallback: 'Challenge Deposit',
         paymentMethod: 'sslcommerz',
-      };
-
-      const sessionResponse = await transactionService.createSslcommerzDepositSession(payload);
+      });
 
       const gatewayUrl = sessionResponse.data?.gatewayPageURL;
       if (!gatewayUrl) {
